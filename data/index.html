@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+
+<head>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            padding: 1.3rem;
+            font-size: 1.2rem;
+        }
+
+        .form {
+            margin-top: 50px;
+            padding-top: 50px;
+            max-width: 600px;
+            margin: auto;
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-radius: 15px;
+            border: #2e2e2e 2px solid;
+        }
+
+        .form h1 {
+            text-align: center;
+            font-family: 'Times New Roman', Times, serif;
+            color: #3f3f3f;
+        }
+
+        .form form {
+            display: flex;
+            flex-direction: column;
+            margin: auto;
+            justify-content: flex-start;
+            /* align-items: center; */
+            width: 100%;
+        }
+
+        .formGroup {
+            width: 100%;
+        }
+
+        .form form label {
+            padding: 3px 10px;
+        }
+
+        .form form input {
+            display: block;
+            padding: 5px 10px;
+            width: 100%;
+        }
+
+        .form form span {
+            color: #ff0000;
+        }
+
+        .formGroup {
+            margin-bottom: 10px;
+
+        }
+
+        .form form .formGroup .error {
+            display: none;
+            padding-left: 10px;
+        }
+
+        .form form button {
+            padding: 10px;
+            margin: auto;
+            margin-top: 1rem;
+            border-radius: 6px;
+            border: #000000 1px solid;
+            min-width: 150px;
+            background-color: #6686c2;
+            color: #ffffff;
+        }
+
+        .form form button:hover {
+            background-color: #2b69dd;
+        }
+
+        .notification {
+            display: none;
+            font-size: 18px;
+            font-weight: 800;
+            text-align: center;
+        }
+    </style>
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+    <div class="form">
+        <div>
+            <p class="notification">Notification</p>
+        </div>
+        <h1>Enter credentials for your sensor</h1>
+        <form action="/config" POST>
+            <div class="formGroup room">
+                <label for="room">Enter room name </label>
+                <input type="text" id="room" name="room" placeholder="Sensor location room">
+                <span class="error">Big error</span>
+            </div>
+            <div class="formGroup ssid">
+                <label for="ssid">WiFi SSID <span>*</span></label>
+                <input type="text" id="ssid" name="ssid" placeholder="Your WiFi name" required>
+                <span class="error"></span>
+            </div>
+            <div class="formGroup password">
+                <label for="password">WiFi password <span>*</span></label>
+                <input type="password" id="password" name="password" placeholder="Your WiFi password" required>
+                <span class="error"></span>
+            </div>
+            <div class="formGroup email">
+                <label for="email">User Email <span>*</span></label>
+                <input type="email" id="email" name="email" placeholder="Your account email" required>
+                <span class="error"></span>
+            </div>
+            <div class="formGroup altServerIp">
+                <label for="altServerIP">Server address</label>
+                <input type="text" id="altServerIP" name="altServerIP" placeholder="If server changed enter address">
+                <span class="error"></span>
+            </div>
+            <button type="submit" id="submit-config">Submit</button>
+        </form>
+    </div>
+
+    <script src="index.js"></script>
+
+</body>
