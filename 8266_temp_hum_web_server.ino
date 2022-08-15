@@ -10,9 +10,6 @@
 #include <Adafruit_AHT10.h>
 #include <Adafruit_Sensor.h>
 
-String mac;
-String room;
-String user;
 struct {
   String room;
   String ssid;  
@@ -22,6 +19,7 @@ struct {
   String altServerAddress;
   String mac;
 } config;
+
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -37,6 +35,8 @@ AsyncEventSource events("/events");
 unsigned long lastTime = 0;
 unsigned long timerDelay = 30000;
 unsigned long softAPTimeout = 120000; //if no one connects Soft_AP wifi mode changes to station;
+unsigned long postSensorDataInterval = 120000;
+unsigned long lastTimePost = 0;
 
 const char *serverAddress = "192.168.1.18";
 const int serverPort = 3000;
@@ -202,7 +202,7 @@ void initWiFi(const char *ssid, const char *password) {
 }
 
 void initWiFiAP() {
-  mac = WiFi.macAddress();
+  config.mac = WiFi.macAddress();
   /* Working out AP SSID as Sensor_last_3_mac_octets */  
   // Serial.println(mac);
   // char* buffer = "Sensor_";
@@ -326,6 +326,11 @@ void loop() {
     lastTime = millis();
 
 
+    
+  }
+
+  if ((millis() - lastTimePost) > postSensorDataInterval) {
+    String body = getSensorReadings();
     // Send HTTP response with sensor data.
     if ((WiFi.status() == WL_CONNECTED)) {
 
@@ -333,8 +338,7 @@ void loop() {
       HTTPClient http;
 
 
-      // String mac = WiFi.macAddress();
-      // StaticJsonDocument<200> doc;
+      
       // DeserializationError error = deserializeJson(doc, body);
 
       // if (error) {
@@ -374,6 +378,7 @@ void loop() {
       }
 
       http.end();
+      lastTimePost = millis();
     }
   }
   dnsServer.processNextRequest();
