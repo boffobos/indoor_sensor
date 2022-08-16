@@ -11,11 +11,11 @@
 #include <Adafruit_Sensor.h>
 
 struct {
+  String email;
   String room;
   String ssid;  
   String password;  
-  bool isNetValid;
-  String user;
+  bool isWifiValid;
   String altServerAddress;
   String mac;
 } config;
@@ -102,41 +102,7 @@ public:
   }
 };
 
-//Loading config from file system
-bool loadConfig() {
-  File configFile = LittleFS.open("/config.json", "r");
-  if (!configFile) {
-    Serial.println("Failed to load config file");
-    return false ;    
-  }
-  
-  StaticJsonDocument<300> configJson;
-  String buffer = configFile.readString();     
-  DeserializationError e = deserializeJson(configJson,buffer);
-  
-  if(!e) {
-    // const char *ssid = configJson["ssid"];
-    // const char *password = configJson["password"];
-    config.room = String(configJson["room"]);
-    config.user = String(configJson["email"]);
-    config.ssid = String(configJson["ssid"]);
-    config.password = String(configJson["password"]);
-    config.altServerAddress = String(configJson["altServerAddress"]);
-    
-    configFile.close();
-    return true;
-    // if (ssid && password) {
-    //   initWiFi(ssid, password);
-    //   return true;
-    // }
-    // return false;
-  } else {
-    Serial.println("Failed to read config file");
-    configFile.close();
-    return false;
-  }
-  
-}
+
 
 // Get Sensor Readings and return JSON object
 String getSensorReadings() {
@@ -160,7 +126,7 @@ String getSensorReadings() {
   doc["temperature"] = ta;
   doc["humidity"] = ha;
   doc["mac"] = config.mac;
-  doc["user"] = config.user;
+  doc["email"] = config.email;
   doc["room"] = config.room;
 
   String jsonString;
@@ -190,7 +156,7 @@ void initWiFi(const char *ssid, const char *password) {
       delay(1000);
     }
     if(WiFi.status() == WL_WRONG_PASSWORD || WiFi.status() == WL_NO_SSID_AVAIL) {
-      config.isNetValid = false;
+      config.isWifiValid = false;
       initWiFiAP();
     }
     Serial.println(WiFi.localIP());
@@ -249,13 +215,13 @@ void setup() {
 
   server.serveStatic("/", LittleFS, "/");
 
-  // Request for the latest sensor readings
+  // API for the latest sensor readings
   server.on("/get-data", HTTP_GET, [](AsyncWebServerRequest *request) {
     String json = getSensorReadings();
     request->send(200, "application/json", json);
     json = String();
   });
-
+  
   server.on("/get-config", HTTP_GET, [](AsyncWebServerRequest *request) {
     File config = LittleFS.open("/config.json", "r");
     if (!config) {
@@ -273,27 +239,26 @@ void setup() {
     },
     NULL,
     [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-      StaticJsonDocument<200> json;
-      DeserializationError e = deserializeJson(json, (char *)data);
+      StaticJsonDocument<200> configJson;
+      DeserializationError e = deserializeJson(configJson, (char *)data);
       if (!e) {
-        Serial.println(String(json["email"]));
-        File config = LittleFS.open("/config.json", "w");
-        if (!config) {
-          request->send(204, "Unable to create file, try again");
+         config.room = String(configJson["room"]);       
+         config.email = String(configJson["email"]);       
+         config.ssid = String(configJson["ssid"]);       
+         config.password = String(configJson["password"]);       
+         config.altServerAddress = String(configJson["altServerAddress"]);       
+          
+        if (!saveConfig()) {
+          request->send(204, "Failed to save data, try again");
           return;              
         }  
-        if (serializeJson(json, config) == 0) {
-          request->send(204, "Failed to write config file. Try again!");
-          Serial.println(config.readString());
-          config.close();
-          return;
-        } 
         request->send(200);
+                
       } else {
-        request->send(204);
+        request->send(204, "Failed to recognize data. Check JSON format available only");
       }            
   });
-
+  // for development purpose only
   server.on("/reset-config", HTTP_GET, [](AsyncWebServerRequest *request) {
       if(LittleFS.remove("/config.json")) {
         request->send(200, "Config removed");    
@@ -324,60 +289,11 @@ void loop() {
     events.send("ping", NULL, millis());
     events.send(body.c_str(), "new_readings", millis());
     lastTime = millis();
-
-
-    
   }
 
   if ((millis() - lastTimePost) > postSensorDataInterval) {
-    String body = getSensorReadings();
-    // Send HTTP response with sensor data.
     if ((WiFi.status() == WL_CONNECTED)) {
-
-      WiFiClient client;
-      HTTPClient http;
-
-
-      
-      // DeserializationError error = deserializeJson(doc, body);
-
-      // if (error) {
-      //   Serial.println("Unable to insert mac");
-      // } else {
-      //   doc["mac"] = mac;
-      //   body = "";
-      //   serializeJson(doc, body);
-      //   Serial.println(body);
-      // }
-
-
-      Serial.print("[HTTP] begin...\n");
-      // configure traged server and url
-      http.begin(client, serverAddress, serverPort, serverPath);  //HTTP
-      http.addHeader("Content-Type", "application/json");
-
-      Serial.print("[HTTP] POST...\n");
-      // start connection and send HTTP header and body
-
-      int httpCode = http.POST(body);
-
-      // httpCode will be negative on error
-      if (httpCode > 0) {
-        // HTTP header has been send and Server response header has been handled
-        Serial.printf("[HTTP] POST... code: %d\n", httpCode);
-
-        // file found at server
-        if (httpCode == HTTP_CODE_OK) {
-          const String &payload = http.getString();
-          Serial.println("received payload:\n<<");
-          Serial.println(payload);
-          Serial.println(">>");
-        }
-      } else {
-        Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
-      }
-
-      http.end();
+      sendSensorData();
       lastTimePost = millis();
     }
   }
