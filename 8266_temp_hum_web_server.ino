@@ -58,6 +58,43 @@ void initBME() {
 class CaptiveRequestHandler : public AsyncWebHandler {
 public:
   CaptiveRequestHandler() {
+    
+    // Web Server Root URL
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+      request->send(LittleFS, "/index.html", "text/html");
+    });
+  
+    server.serveStatic("/", LittleFS, "/");
+    
+    // API for the latest sensor readings
+    server.on("/get-data", HTTP_GET, [](AsyncWebServerRequest *request) {
+      String json = getSensorReadings();
+      request->send(200, "application/json", json);
+      json = String();
+    });
+  
+    server.on("/get-config", HTTP_GET, [](AsyncWebServerRequest *request) {
+      File configFile = LittleFS.open("/config.json", "r");
+      if (!configFile) {
+        request->send(204, "File to open config file.");
+        configFile.close();
+        return;
+      }
+      String json = configFile.readString();
+      configFile.close();    
+      request->send(200, "application/json", json);
+    });
+
+    // for development purpose only
+    server.on("/reset-config", HTTP_GET, [](AsyncWebServerRequest *request) {
+        if(LittleFS.remove("/config.json")) {
+          request->send(200, "Config removed");    
+          return;
+        }
+      request->send(204, "reset config failed, try again");    
+    });
+   
+    // if it is need to reconfigure config 
     server.on(
       "/config", HTTP_POST,
       [](AsyncWebServerRequest *request) {
@@ -65,30 +102,30 @@ public:
       },
       NULL,
       [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-        StaticJsonDocument<200> json;
-        DeserializationError e = deserializeJson(json, (char *)data);
+        StaticJsonDocument<300> configJson;
+        DeserializationError e = deserializeJson(configJson, (char *)data);
         if (!e) {
-          Serial.println(String(json["email"]));
-          File config = LittleFS.open("/config.json", "w");
-          if (!config) {
-            request->send(204, "Unable to create file, try again");
+          config.room = String(configJson["room"]);       
+          config.email = String(configJson["email"]);       
+          config.ssid = String(configJson["ssid"]);       
+          config.password = String(configJson["password"]);       
+          config.isWifiValid = true;       
+          config.altServerAddress = String(configJson["altServerAddress"]);       
+            
+          if (!saveConfig()) {
+            request->send(204, "Failed to save data, try again");
             return;              
           }  
-          if (serializeJson(json, config) == 0) {
-            request->send(204, "Failed to write config file. Try again!");
-            Serial.println(config.readString());
-            config.close();
-            return;
-          } 
           request->send(200);
+                  
         } else {
-          request->send(204);
-        }            
+          request->send(204, "Failed to recognize data. Check JSON format available only");
+        }                 
       }
     );
-  
-    server.serveStatic("/", LittleFS, "/");
+
     
+    /**/
   }
   virtual ~CaptiveRequestHandler() {}
 
@@ -143,7 +180,7 @@ void initFS() {
 }
 
 // Initialize WiFi
-void initWiFi(const char *ssid, const char *password) {
+bool initWiFi(const char *ssid, const char *password) {
   config.mac = WiFi.macAddress();
   if (ssid && password) {
     WiFi.mode(WIFI_STA);
@@ -155,12 +192,19 @@ void initWiFi(const char *ssid, const char *password) {
       Serial.print('.');
       delay(1000);
     }
+
+    Serial.println("");   
     if(WiFi.status() == WL_WRONG_PASSWORD || WiFi.status() == WL_NO_SSID_AVAIL) {
       config.isWifiValid = false;
-      initWiFiAP();
+      saveConfig();
+      Serial.println("Can not connect to WiFi.");  
+      return false;  
+      // initWiFiAP();
     }
     Serial.println(WiFi.localIP());
-        
+    config.isWifiValid = true;
+    saveConfig();
+    return true;
   }
   // if (MDNS.begin("tempSensor")) {
   //   Serial.println("MDNS responder started");
@@ -199,74 +243,18 @@ void setup() {
   Serial.begin(115200);
   initBME();
   initFS();
-  if(!loadConfig()) {
-    initWiFiAP();
+  loadConfig();
+  Serial.println(config.isWifiValid);
+  // Serial.print("Logical operation: ");
+  // Serial.println("true" == "true" ? true : false);
+  if(config.isWifiValid) {
+    if (!initWiFi(config.ssid.c_str(), config.password.c_str())) {
+      initWiFiAP();
+    }
   } else {
-    initWiFi(config.ssid.c_str(), config.password.c_str());   
+    initWiFiAP();    
   }
   
-  
-  // initWiFi();
-
-  // Web Server Root URL
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(LittleFS, "/index.html", "text/html");
-  });
-
-  server.serveStatic("/", LittleFS, "/");
-
-  // API for the latest sensor readings
-  server.on("/get-data", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String json = getSensorReadings();
-    request->send(200, "application/json", json);
-    json = String();
-  });
-  
-  server.on("/get-config", HTTP_GET, [](AsyncWebServerRequest *request) {
-    File config = LittleFS.open("/config.json", "r");
-    if (!config) {
-      request->send(204, "File to open config file.");
-      return;
-    }
-    String json = config.readString();
-    request->send(200, "application/json", json);
-  });
-
-  server.on(
-    "/config", HTTP_POST,
-    [](AsyncWebServerRequest *request) {
-      // first callback
-    },
-    NULL,
-    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-      StaticJsonDocument<200> configJson;
-      DeserializationError e = deserializeJson(configJson, (char *)data);
-      if (!e) {
-         config.room = String(configJson["room"]);       
-         config.email = String(configJson["email"]);       
-         config.ssid = String(configJson["ssid"]);       
-         config.password = String(configJson["password"]);       
-         config.altServerAddress = String(configJson["altServerAddress"]);       
-          
-        if (!saveConfig()) {
-          request->send(204, "Failed to save data, try again");
-          return;              
-        }  
-        request->send(200);
-                
-      } else {
-        request->send(204, "Failed to recognize data. Check JSON format available only");
-      }            
-  });
-  // for development purpose only
-  server.on("/reset-config", HTTP_GET, [](AsyncWebServerRequest *request) {
-      if(LittleFS.remove("/config.json")) {
-        request->send(200, "Config removed");    
-        return;
-      }
-    request->send(204, "reset config failed, try again");    
-  });  
-
   events.onConnect([](AsyncEventSourceClient *client) {
     if (client->lastId()) {
       Serial.printf("Client reconnected! Last message ID that it got is: %u\n", client->lastId());
@@ -276,6 +264,7 @@ void setup() {
     client->send("hello!", NULL, millis(), 10000);
   });
   server.addHandler(&events);
+  server.addHandler(new CaptiveRequestHandler());
 
   // Start server
   server.begin();

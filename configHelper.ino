@@ -4,6 +4,7 @@ bool saveConfig() {
   File configFile = LittleFS.open("/config.json", "w");
   if (!configFile) {
     Serial.println("Failed to open config.json file");
+    configFile.close();  
     return false;    
   }
 
@@ -18,9 +19,11 @@ bool saveConfig() {
 
   if (serializeJson(configJson, configFile) == 0) {
     Serial.println("Failed to write config file");
+    configFile.close();
     return false;  
   }
-  Serial.println("Config file has been written successfuly!");  
+  Serial.println("Config file has been written successfully!");
+  configFile.close(); 
   return true;
 }
 
@@ -28,7 +31,8 @@ bool loadConfig() {
   File configFile = LittleFS.open("/config.json", "r");
   if (!configFile) {
     Serial.println("Failed to load config file");
-    return false ;    
+    configFile.close();
+    return false;    
   }
   
   StaticJsonDocument<300> configJson;
@@ -42,16 +46,9 @@ bool loadConfig() {
     config.room = String(configJson["room"]);
     config.ssid = String(configJson["ssid"]);
     config.password = String(configJson["password"]);
-    config.isWifiValid = String(configJson["password"]) == "true" ? true : false;
-    config.altServerAddress = String(configJson["altServerAddress"]);
-    
+    config.isWifiValid = String(configJson["isWifiValid"]).compareTo("true") == 0 ? true : false;
     configFile.close();
     return true;
-    // if (ssid && password) {
-    //   initWiFi(ssid, password);
-    //   return true;
-    // }
-    // return false;
   } else {
     Serial.println("Failed to read config file");
     configFile.close();
