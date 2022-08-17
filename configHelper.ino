@@ -24,9 +24,11 @@ bool saveConfig() {
   }
   Serial.println("Config file has been written successfully!");
   configFile.close(); 
+  configChandedTrigger();  
   return true;
 }
 
+//Loading config from file system and load it to RAM
 bool loadConfig() {
   File configFile = LittleFS.open("/config.json", "r");
   if (!configFile) {
@@ -40,13 +42,11 @@ bool loadConfig() {
   DeserializationError e = deserializeJson(configJson,buffer);
   
   if(!e) {
-    // const char *ssid = configJson["ssid"];
-    // const char *password = configJson["password"];
     config.email = String(configJson["email"]);
     config.room = String(configJson["room"]);
     config.ssid = String(configJson["ssid"]);
     config.password = String(configJson["password"]);
-    config.isWifiValid = String(configJson["isWifiValid"]).compareTo("true") == 0 ? true : false;
+    config.isWifiValid = String(configJson["isWifiValid"]).equals("true");
     configFile.close();
     return true;
   } else {
@@ -55,5 +55,28 @@ bool loadConfig() {
     return false;
   }
   
+}
+
+// Function for adding nessesary actions after saving config
+void configChandedTrigger() {
+  loadConfig();
+  
+  if (WiFi.isConnected()) {
+    
+  } else {
+    if(config.isWifiValid) {
+      if (!initWiFi(config.ssid.c_str(), config.password.c_str())) {
+        initWiFiAP();
+      } else {
+        if (WiFi.softAPdisconnect(true)) {
+          Serial.println("Soft AP disabled!");
+        }
+      }
+    } else {
+      initWiFiAP();
+    }
+
+  }
+    
 }
 

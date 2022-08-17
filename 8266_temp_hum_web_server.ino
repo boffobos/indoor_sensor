@@ -179,74 +179,12 @@ void initFS() {
   Serial.println("LittleFS mounted successfully");
 }
 
-// Initialize WiFi
-bool initWiFi(const char *ssid, const char *password) {
-  config.mac = WiFi.macAddress();
-  if (ssid && password) {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    Serial.print("Connecting to WiFi ..");
-    int timeout = 60;  
-    while (WiFi.status() != WL_CONNECTED && timeout) {
-      timeout--;
-      Serial.print('.');
-      delay(1000);
-    }
-
-    Serial.println("");   
-    if(WiFi.status() == WL_WRONG_PASSWORD || WiFi.status() == WL_NO_SSID_AVAIL) {
-      config.isWifiValid = false;
-      saveConfig();
-      Serial.println("Can not connect to WiFi.");  
-      return false;  
-      // initWiFiAP();
-    }
-    Serial.println(WiFi.localIP());
-    config.isWifiValid = true;
-    saveConfig();
-    return true;
-  }
-  // if (MDNS.begin("tempSensor")) {
-  //   Serial.println("MDNS responder started");
-  // }
-}
-
-void initWiFiAP() {
-  config.mac = WiFi.macAddress();
-  /* Working out AP SSID as Sensor_last_3_mac_octets */  
-  // Serial.println(mac);
-  // char* buffer = "Sensor_";
-  // strcat(buffer, mac.c_str());
-  // Serial.println(buffer);
-  // const char *APssid = buffer;
-  const char *APssid = "Sensor_B6:47:0F_AP";
-  const char *APpassword = "12345678";
-  IPAddress local_IP(192,168,90,1);
-  
-  Serial.print("Setting soft-AP configuration ... ");
-  Serial.println(WiFi.softAPConfig(local_IP, local_IP, IPAddress(255,255,255,0)) ? "Ready" : "Failed!");
-  WiFi.softAP(APssid, APpassword ? APpassword : NULL);
-  // delay(500); //for seeing localIP
-  Serial.print("AP soft IP address: ");
-  IPAddress myIP = WiFi.softAPIP();
-  Serial.println(myIP);
-
-  /* Setup the DNS server redirecting all the domains to the apIP */
-  dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
-  dnsServer.start(DNS_PORT, "*", local_IP);
-  
-  server.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER); //only when requested from AP
-  
-}
 
 void setup() {
   Serial.begin(115200);
   initBME();
   initFS();
   loadConfig();
-  Serial.println(config.isWifiValid);
-  // Serial.print("Logical operation: ");
-  // Serial.println("true" == "true" ? true : false);
   if(config.isWifiValid) {
     if (!initWiFi(config.ssid.c_str(), config.password.c_str())) {
       initWiFiAP();
